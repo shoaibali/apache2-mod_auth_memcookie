@@ -15,9 +15,9 @@
 
 /*
  * mod_auth_memcookie_module: memcached cookies authentication
- * 
+ *
  * Autor: Mathieu CARBONNEAUX
- * 
+ *
  */
 
 /* changed by mls in 2011-04:
@@ -100,7 +100,8 @@ typedef struct {
     char *	szAuth_memCookie_SessionHeaders;
     char *	szAuth_memCookie_CommandHeader;
     int 	nAuth_memCookie_AllowAnonymous;
-    int         nAuth_memCookie_AuthentificationURIOnlyAuth;
+    int     nAuth_memCookie_AuthentificationURIOnlyAuth;
+    int     nAuth_memCookie_Add_Remote_User_Header;
 } strAuth_memCookie_config_rec;
 
 
@@ -140,7 +141,7 @@ static request_rec *sub_req_method_uri(const char *method, const char *new_uri, 
     request_rec *rnew;
     int res = HTTP_INTERNAL_SERVER_ERROR;
     rnew = make_sub_request(r);
-    rnew->method = method; 
+    rnew->method = method;
     rnew->method_number = ap_method_number_of(method);
     ap_parse_uri(rnew, new_uri);
     if (ap_is_recursion_limit_exceeded(r)) {
@@ -158,7 +159,7 @@ static request_rec *sub_req_method_uri(const char *method, const char *new_uri, 
 
 /* Look through 'Cookie' header for indicated cookie; extract it
  * and URL-unescape it. Return the cookie on success, NULL on failure. */
-static char * extract_cookie(request_rec *r, const char *szCookie_name) 
+static char * extract_cookie(request_rec *r, const char *szCookie_name)
 {
     const char *szRaw_cookie, *szRaw_cookie_start = NULL, *szRaw_cookie_end;
     char *szCookie;
@@ -167,14 +168,14 @@ static char * extract_cookie(request_rec *r, const char *szCookie_name)
     /* get cookie string */
     szRaw_cookie = apr_table_get(r->headers_in, "Cookie");
     if (!szRaw_cookie)
-	return 0;
+    	return 0;
 
     /* loop to search cookie name in cookie header */
     do {
 	/* search cookie name in cookie string */
 	if ((szRaw_cookie = strstr(szRaw_cookie, szCookie_name)) == 0)
 	    return 0;
-	szRaw_cookie_start = szRaw_cookie;
+    szRaw_cookie_start = szRaw_cookie;
 	/* search '=' */
 	if ((szRaw_cookie = strchr(szRaw_cookie, '=')) == 0)
 	    return 0;
@@ -190,14 +191,16 @@ static char * extract_cookie(request_rec *r, const char *szCookie_name)
     /* dup the value string found in apache pool and set the result pool ptr to szCookie ptr */
     if ((szCookie = apr_pstrndup(r->pool, szRaw_cookie, szRaw_cookie_end-szRaw_cookie)) == 0)
 	return 0;
-    /* unescape the value string */ 
+    /* unescape the value string */
     if (ap_unescape_url(szCookie) != 0)
 	return 0;
 
     /* be extra paranoid about the cookie value, reject if no md5sum */
-    if (strlen(szCookie) != 32)
-	return 0;
+    if (!(strlen(szCookie) == 32 || strlen(szCookie)== 43))
+	   return 0;
     for (i = 0; i < 32; i++) {
+    if (szCookie[i] == '_')
+        continue;
 	if (szCookie[i] >= '0' && szCookie[i] <= '9')
 	    continue;
 	if (szCookie[i] >= 'a' && szCookie[i] <= 'f')
@@ -205,6 +208,7 @@ static char * extract_cookie(request_rec *r, const char *szCookie_name)
 	return 0;
     }
 
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, ERRTAG "Cleaned Cookie: %s ", szCookie);
     return szCookie;
 }
 
@@ -215,6 +219,7 @@ static char * extract_cookie(request_rec *r, const char *szCookie_name)
 static void fix_headers_in(request_rec *r, const char *szPassword)
 {
 
+    strAuth_memCookie_config_rec *conf = NULL;
     const char *szUser = NULL;
 
     /* Set an Authorization header in the input request table for php and
@@ -248,9 +253,9 @@ static void fix_headers_in(request_rec *r, const char *szPassword)
 	/* force auth type to basic */
 	r->ap_auth_type = apr_pstrdup(r->pool, "Basic");
     }
-  
+
     return;
-} 
+}
 
 /* get session with szCookieValue key from memcached server */
 static apr_table_t *Auth_memCookie_get_session(request_rec *r, strAuth_memCookie_config_rec *conf, char *szCookieValue)
@@ -275,7 +280,7 @@ static apr_table_t *Auth_memCookie_get_session(request_rec *r, strAuth_memCookie
     char *szMyValue;
     const char *UserName;
     int nbInfo = 0;
-    
+
     if ((pMySession = apr_table_make(r->pool, conf->nAuth_memCookie_SessionTableSize)) == 0) {
 	ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, ERRTAG "apr_tablemake failed");
 	return NULL;
@@ -352,7 +357,7 @@ static apr_table_t *Auth_memCookie_get_session(request_rec *r, strAuth_memCookie
 
     /* free the mc session */
     memcached_free(mc_session);
-    
+
     /* set the good username found in request structure */
     UserName = 0;
     if (pMySession != NULL)
@@ -578,8 +583,8 @@ static apr_table_t *Auth_memCookie_session_from_subrequest(request_rec *r, strAu
 	ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, ERRTAG "apr_tablemake failed");
 	ap_destroy_sub_req(rr);
 	return 0;
-    } 
-    
+    }
+
     /* copy all configured headers into the session */
     if (conf->szAuth_memCookie_SessionHeaders) {
 	char *headers = apr_pstrdup(r->pool, conf->szAuth_memCookie_SessionHeaders);
@@ -634,8 +639,8 @@ static apr_table_t *Auth_memCookie_session_from_subrequest(request_rec *r, strAu
 
 
 /**************************************************
- * authentification phase: 
- * verify if cookie is set and if it is known in memcache server 
+ * authentification phase:
+ * verify if cookie is set and if it is known in memcache server
  **************************************************/
 static int Auth_memCookie_check_cookie(request_rec *r)
 {
@@ -658,7 +663,7 @@ static int Auth_memCookie_check_cookie(request_rec *r)
     else if (conf->nAuth_memCookie_MatchIP_Mode == 1 && apr_table_get(r->headers_in, "X-Forwarded-For") != NULL)
 	szRemoteIP = apr_pstrdup(r->pool, apr_table_get(r->headers_in, "X-Forwarded-For"));
     else
-	szRemoteIP = apr_pstrdup(r->pool, r->connection->remote_ip);
+	szRemoteIP = apr_pstrdup(r->pool, r->connection->client_ip);
 
     if (!conf->nAuth_memCookie_Authoritative)
 	return DECLINED;
@@ -789,7 +794,7 @@ static int Auth_memCookie_check_cookie(request_rec *r)
 
     /* set MCAC-SESSIONKEY var for scripts language */
     apr_table_setn(r->subprocess_env, "MCAC_SESSIONKEY", szCookieValue);
-    
+
     /* set in http header the session value */
     if (conf->nAuth_memCookie_SetSessionHTTPHeader)
 	apr_table_do(Auth_memCookie_DoSetHeader, r, pAuthSession, NULL);
@@ -801,14 +806,18 @@ static int Auth_memCookie_check_cookie(request_rec *r)
     if (conf->nAuth_memCookie_authbasicfix)
 	fix_headers_in(r, apr_table_get(pAuthSession, "Password"));
 
+    // do we add the X-Remote-User header?
+    if (conf->nAuth_memCookie_Add_Remote_User_Header)
+        apr_table_addn(r->headers_in, "X-Remote-User", r->user);
+
     /* if all is ok return auth ok */
     return OK;
 }
 
 
 /**************************************************
- * authentification phase: 
- * Checking authoriszation for user and group of the authenticated cookie 
+ * authentification phase:
+ * Checking authoriszation for user and group of the authenticated cookie
  **************************************************/
 
 static int Auth_memCookie_check_auth(request_rec *r)
@@ -829,42 +838,55 @@ static int Auth_memCookie_check_auth(request_rec *r)
 
     apr_table_t *pAuthSession=NULL;
     apr_status_t tRetStatus;
+    const char *current_auth;
 
-    ap_log_rerror(APLOG_MARK,APLOG_DEBUG|APLOG_NOERRNO, 0,r,ERRTAG  "ap_hook_auth_checker in");
+    /* Are we configured to be Basic auth? */
+    current_auth = ap_auth_type(r);
+
+
+    ap_log_rerror(APLOG_MARK,APLOG_DEBUG|APLOG_NOERRNO, 0,r,ERRTAG  "ap_hook_auth_checker in: %s", current_auth);
 
     /* get apache config */
     conf = ap_get_module_config(r->per_dir_config, &auth_memcookie_module);
+    ap_log_rerror(APLOG_MARK,APLOG_DEBUG, 0,r,ERRTAG  "here 1");
 
     /* check if module are authoritative */
     if (!conf->nAuth_memCookie_Authoritative)
 	return DECLINED;
+ap_log_rerror(APLOG_MARK,APLOG_DEBUG, 0,r,ERRTAG  "here 2");
 
     /* check if module are authoritative in group check */
     if (!conf->nAuth_memCookie_GroupAuthoritative)
 	return DECLINED;
+ap_log_rerror(APLOG_MARK,APLOG_DEBUG, 0,r,ERRTAG  "here 3");
 
     if ((tRetStatus = apr_pool_userdata_get((void**)&pAuthSession, "SESSION", r->pool))) {
 	ap_log_rerror(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, 0, r,ERRTAG "apr_pool_userdata_get Apr Error: %d", tRetStatus);
 	return HTTP_FORBIDDEN;
     }
 
-    /* get require line */
-    reqs_arr = ap_requires(r);
-    reqs = reqs_arr ? (require_line *) reqs_arr->elts : NULL;
+ap_log_rerror(APLOG_MARK,APLOG_DEBUG, 0,r,ERRTAG  "here 4");
+ //    /* get require line */
+ //    reqs_arr = ap_requires(r);
+ //    reqs = reqs_arr ? (require_line *) reqs_arr->elts : NULL;
 
-    /* decline if no require line found */
-    if (!reqs_arr)
-	return DECLINED;
+ //    /* decline if no require line found */
+ //    if (!reqs_arr)
+	// return DECLINED;
 
     /* walk throug the array to check eatch require command */
     for (x = 0; x < reqs_arr->nelts; x++) {
+ap_log_rerror(APLOG_MARK,APLOG_DEBUG, 0,r,ERRTAG  "here loop 5");
 
-	if (!(reqs[x].method_mask & (AP_METHOD_BIT << m)))
-	    continue;
+    if (!(reqs[x].method_mask & (AP_METHOD_BIT << m)))
+        continue;
 
-	/* get require line */
-	szRequireLine = reqs[x].requirement;
-	ap_log_rerror(APLOG_MARK,APLOG_DEBUG|APLOG_NOERRNO, 0,r,ERRTAG  "Require Line is '%s'", szRequireLine);
+ap_log_rerror(APLOG_MARK,APLOG_DEBUG, 0,r,ERRTAG  "here loop 6");
+
+    /* get require line */
+    szRequireLine = reqs[x].requirement;
+    ap_log_rerror(APLOG_MARK,APLOG_DEBUG|APLOG_NOERRNO, 0,r,ERRTAG  "Require Line is '%s'", szRequireLine);
+
 
 	/* get the first word in require line */
 	szRequire_cmd = ap_getword_white(r->pool, &szRequireLine);
@@ -875,7 +897,7 @@ static int Auth_memCookie_check_auth(request_rec *r)
 	    ap_log_rerror(APLOG_MARK,APLOG_DEBUG|APLOG_NOERRNO, 0,r,ERRTAG "Require Cmd valid-user");
 	    return OK;
 	} else if (!strcmp("user", szRequire_cmd)) {
-	    /* check the required user */ 
+	    /* check the required user */
 	    szUser = ap_getword_conf(r->pool, &szRequireLine);
 	    if (strcmp(szMyUser, szUser)) {
 		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, ERRTAG  "the user logged '%s' is not the user required '%s'",szMyUser,szUser);
@@ -887,11 +909,11 @@ static int Auth_memCookie_check_auth(request_rec *r)
 	    szGroups = apr_table_get(pAuthSession, "Groups");
 	    szGroup = ap_getword_white(r->pool, &szRequireLine);
 	    ap_log_rerror(APLOG_MARK, APLOG_INFO|APLOG_NOERRNO, 0, r, ERRTAG  "check group '%s' in '%s'",szGroup,szGroups);
-	    if (szGroups == NULL) { 
+	    if (szGroups == NULL) {
 		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, ERRTAG  "user %s not in group", szMyUser);
 		return HTTP_FORBIDDEN;
 	    }
-	
+
 	    if (get_Auth_memCookie_grp(r, szGroup, szGroups) != OK) {
 		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, ERRTAG  "user %s not in right group", szMyUser);
 		return HTTP_FORBIDDEN;
@@ -913,13 +935,25 @@ static int memcookie_sink_filter(ap_filter_t *f, apr_bucket_brigade *in)
 }
 
 /**************************************************
- * register module hook 
+ * register module hook
  **************************************************/
 static void register_hooks(apr_pool_t *p)
 {
     ap_register_output_filter("MEMCOOKIE_SINK", memcookie_sink_filter, NULL, AP_FTYPE_CONTENT_SET + 1);
     ap_hook_check_user_id(Auth_memCookie_check_cookie, NULL, NULL, APR_HOOK_FIRST);
-    ap_hook_auth_checker(Auth_memCookie_check_auth, NULL, NULL, APR_HOOK_FIRST);
+    // ap_hook_auth_checker(Auth_memCookie_check_auth, NULL, NULL, APR_HOOK_FIRST);
+
+    // ap_register_auth_provider(p, AUTHZ_PROVIDER_GROUP, "user",
+    //                           AUTHZ_PROVIDER_VERSION,
+    //                           &Auth_memCookie_check_auth_user, AP_AUTH_INTERNAL_PER_CONF);
+    // ap_register_auth_provider(p, AUTHZ_PROVIDER_GROUP, "valid-user",
+    //                           AUTHZ_PROVIDER_VERSION,
+    //                           &Auth_memCookie_check_auth_valid_user,
+    //                           AP_AUTH_INTERNAL_PER_CONF);
+    // ap_register_auth_provider(p, AUTHZ_PROVIDER_GROUP, "group",
+    //                           AUTHZ_PROVIDER_VERSION,
+    //                           &Auth_memCookie_check_auth_valid_group,
+    //                           AP_AUTH_INTERNAL_PER_CONF);
 }
 
 /************************************************************************************
@@ -948,6 +982,7 @@ static void *create_Auth_memCookie_dir_config(apr_pool_t *p, char *d)
     conf->szAuth_memCookie_CommandHeader = 0;
     conf->nAuth_memCookie_AllowAnonymous = 0;
     conf->nAuth_memCookie_AuthentificationURIOnlyAuth = 0;
+    conf->nAuth_memCookie_Add_Remote_User_Header = 0;
     return conf;
 }
 
@@ -990,8 +1025,8 @@ static const command_rec Auth_memCookie_cmds[] =
     AP_INIT_TAKE1("Auth_memCookie_CookieName", ap_set_string_slot,
      (void *)APR_OFFSETOF(strAuth_memCookie_config_rec, szAuth_memCookie_CookieName),
      OR_AUTHCFG, "Name of cookie to set"),
-    AP_INIT_TAKE1 ( "Auth_memCookie_MatchIP_Mode", cmd_MatchIP_Mode, 
-     NULL, 
+    AP_INIT_TAKE1 ( "Auth_memCookie_MatchIP_Mode", cmd_MatchIP_Mode,
+     NULL,
      OR_AUTHCFG, "To check cookie ip adresse, Set to '1' to use 'X-Forwarded-For' http header, to '2' to use 'Via' http header, and to '3' to use apache remote_ip. set to '0' by default to desactivate the ip check."),
     AP_INIT_FLAG ("Auth_memCookie_GroupAuthoritative", ap_set_flag_slot,
      (void *)APR_OFFSETOF(strAuth_memCookie_config_rec, nAuth_memCookie_GroupAuthoritative),
@@ -1030,6 +1065,10 @@ static const command_rec Auth_memCookie_cmds[] =
     AP_INIT_FLAG ("Auth_memCookie_AllowAnonymous", ap_set_flag_slot,
      (void *)APR_OFFSETOF(strAuth_memCookie_config_rec, nAuth_memCookie_AllowAnonymous),
      OR_AUTHCFG, "Set to 'yes' to allow alonymous access if no session is found"),
+
+    AP_INIT_FLAG ("Auth_memCookie_Add_Remote_User_Header", ap_set_flag_slot,
+     (void *)APR_OFFSETOF(strAuth_memCookie_config_rec, nAuth_memCookie_Add_Remote_User_Header),
+     OR_AUTHCFG, "Set to 'yes' to pass username in te header X-Remote-User, set to 'no' by default"),
 
     {NULL}
 };

@@ -1,6 +1,6 @@
 CFLAGS=-I/usr/include/libmemcached
 LDFLAGS=-lmemcached
-APXS=/usr/sbin/apxs2
+APXS=/usr/bin/apxs2
 
 .SUFFIXES: .c .o .la
 
