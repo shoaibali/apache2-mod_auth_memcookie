@@ -45,6 +45,10 @@ Takes a session cookie, looks this up in Memcache.  Sets REMOTE_USER to UserName
 * Auth_memCookie_SessionHeaders: Comma seperated list of headers that define a session - these get unset
 * Auth_memCookie_Add_Remote_User_Header: Set to 'yes' to pass username in te header X-Remote-User, set to 'no' by default
 
+## Dependencies
+
+* apache2-dev 
+* libmemcache-dev
 
 ## Build
 
