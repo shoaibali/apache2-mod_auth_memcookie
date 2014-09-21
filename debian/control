@@ -1,0 +1,19 @@
+Source: libapache2-mod-auth-memcookie
+Section: libs 
+Priority: extra
+Maintainer: Eva Ramon Salinas <debian@empanadilla.net>
+Build-Depends: debhelper (>= 8.0.0), apache2-dev, libmemcache-dev
+Standards-Version: 3.9.3
+Homepage: https://github.com/piersharding/apache2-mod_auth_memcookie
+
+Package: libapache2-mod-auth-memcookie
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, apache2-api-20120211
+Description: Apache2 authentication and authorization module. 
+ AuthMemCookie is an Apache2 authentication and authorization module. 
+ It does not make authentication by itself: the login page has to set 
+ an authentication cookie and store the user information in memcache. 
+ Fork to support SimpleSAMLphp and Apache 2.4
+ Takes a session cookie, looks this up in Memcache. Sets REMOTE_USER to
+ UserName value in session. Optionally Takes all the other session
+ values and sticks them in X_* env vars and HTTP headers.

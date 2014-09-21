@@ -1,0 +1,12 @@
+Use conn_rec->client_ip instead conn_rec->remote_ip: Apache 2.4 API Changes
+--- a/mod_auth_memcookie.c
++++ b/mod_auth_memcookie.c
+@@ -340,7 +340,7 @@
+     else if (conf->nAuth_memCookie_MatchIP_Mode==1&&apr_table_get(r->headers_in,"X-Forwarded-For")!=NULL)
+       szRemoteIP=apr_pstrdup(r->pool,apr_table_get(r->headers_in,"X-Forwarded-For"));
+     else
+-      szRemoteIP=apr_pstrdup(r->pool,r->connection->remote_ip);
++      szRemoteIP=apr_pstrdup(r->pool,r->connection->client_ip);
+ 
+ 
+     unless(conf->nAuth_memCookie_Authoritative)

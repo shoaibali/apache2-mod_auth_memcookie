@@ -3,12 +3,12 @@ apache2-mod_auth_memcookie
 
 Fork to support SimpleSAMLphp and Apache 2.4
 
-Takes a session cookie, looks this up in Memcache.  Sets REMOTE_User to UserName value in session. Optionally  Takes all the other session values and sticks them in X_* env vars and HTTP headers.
+Takes a session cookie, looks this up in Memcache.  Sets REMOTE_USER to UserName value in session. Optionally  Takes all the other session values and sticks them in X_* env vars and HTTP headers.
 
 ## Configure Apache:
 
     # Configuration example for using auth_memcookie module
-    LoadModule auth_memcookie_module /usr/lib/apache2/modules/mod_auth_memcookie.so
+    LoadModule mod_auth_memcookie_module /usr/lib/apache2/modules/mod_auth_memcookie.so
 
     <IfModule auth_memcookie.c>
       <Location /some_service>
@@ -44,3 +44,9 @@ Takes a session cookie, looks this up in Memcache.  Sets REMOTE_User to UserName
 * Auth_memCookie_SilmulateAuthBasic: Set to 'no' to fix http header and auth_type for simulating auth basic for scripting languages like php auth framework work, set to 'no' by default
 * Auth_memCookie_SessionHeaders: Comma seperated list of headers that define a session - these get unset
 * Auth_memCookie_Add_Remote_User_Header: Set to 'yes' to pass username in te header X-Remote-User, set to 'no' by default
+
+
+## Build
+
+See build.sh for an example of how to build a debian package
+

@@ -1,0 +1,6 @@
+libapache2-mod-auth-memcookie (1.1.0-1) unstable; urgency=low
+
+  * Additional changes for the new Apache Version 2.4 
+
+ -- Piers Harding <piers@ompka.net>  Mon, 22 Sep 2014 09:35:00 +0000
+

@@ -1,0 +1,28 @@
+#!/usr/bin/make -f
+# -*- makefile -*-
+# Sample debian/rules that uses debhelper.
+# This file was originally written by Joey Hess and Craig Small.
+# As a special exception, when this file is copied by dh-make into a
+# dh-make output file, you may use that output file without restriction.
+# This special exception was added by Craig Small in version 0.37 of dh-make.
+
+# Uncomment this to turn on verbose mode.
+export DH_VERBOSE=1
+export DH_OPTIONS=-v
+
+%:
+	dh $@ 
+
+# In target install, We need to do here the same apxs does
+
+override_dh_auto_install:
+
+	# Install the module binary (shared object) into /usr/lib/apache2/modules
+	install -v -m 644 $(CURDIR)/.libs/mod_auth_memcookie.so -D $(CURDIR)/debian/libapache2-mod-auth-memcookie/usr/lib/apache2/modules/mod_auth_memcookie.so
+
+	# Create /etc/apache2/mods-available
+	install -v -m 755 -d -D $(CURDIR)/debian/libapache2-mod-auth-memcookie/etc/apache2/mods-available/	
+
+	# Create /etc/apache2/mods-available/auth_memcookie.load with the LoadModule directive inside
+	echo "LoadModule mod_auth_memcookie_module /usr/lib/apache2/modules/mod_auth_memcookie.so" > $(CURDIR)/debian/libapache2-mod-auth-memcookie/etc/apache2/mods-available/auth_memcookie.load
+

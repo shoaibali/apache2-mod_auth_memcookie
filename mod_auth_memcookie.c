@@ -74,7 +74,7 @@
 
 
 /* apache module name */
-module AP_MODULE_DECLARE_DATA auth_memcookie_module;
+module AP_MODULE_DECLARE_DATA mod_auth_memcookie_module;
 
 /* config structure */
 typedef struct {
@@ -344,7 +344,7 @@ static int Auth_memCookie_check_cookie(request_rec *r)
     ap_log_rerror(APLOG_MARK,APLOG_DEBUG|APLOG_NOERRNO, 0,r,ERRTAG  "ap_hook_check_user_id in");
 
     /* get apache config */
-    conf = ap_get_module_config(r->per_dir_config, &auth_memcookie_module);
+    conf = ap_get_module_config(r->per_dir_config, &mod_auth_memcookie_module);
 
     ap_log_rerror(APLOG_MARK,APLOG_DEBUG|APLOG_NOERRNO, 0,r,ERRTAG  "check MatchIP_Mode:%d",conf->nAuth_memCookie_MatchIP_Mode);
     /* set remote ip in case of conf->nAuth_memCookie_MatchIP_Mode value */
@@ -526,7 +526,7 @@ static const command_rec Auth_memCookie_cmds[] =
 };
 
 /* apache module structure */
-module AP_MODULE_DECLARE_DATA auth_memcookie_module =
+module AP_MODULE_DECLARE_DATA mod_auth_memcookie_module =
 {
     STANDARD20_MODULE_STUFF,
     create_Auth_memCookie_dir_config, /* dir config creater */

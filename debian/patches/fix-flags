@@ -1,0 +1,12 @@
+Flags not relevant (upstream author's working directory)
+--- a/Makefile
++++ b/Makefile
+@@ -1,6 +1,6 @@
+ MY_APXS=/usr/bin/apxs2
+-MY_LDFLAGS=-lmemcache -L/mnt/distributions/rpmbuilds/ste-1.0/ste-php/TMP/SFR-libmemcache-1.4.0.rc2-build/product/sfr-suse-addon/lib
+-MY_CFLAGS=-I/mnt/distributions/rpmbuilds/ste-1.0/ste-php/TMP/SFR-libmemcache-1.4.0.rc2-build/product/sfr-suse-addon/include
++MY_LDFLAGS=-lmemcache
++MY_CFLAGS=
+ 
+ .SUFFIXES: .c .o .la
+ .c.la:
